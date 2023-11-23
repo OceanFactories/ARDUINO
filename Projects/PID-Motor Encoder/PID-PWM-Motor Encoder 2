@@ -1,0 +1,82 @@
+// Pin Configuration
+#define MOTOR_PWM_PIN 8 // in 2
+#define MOTOR_DIR_PIN_1 7 // in 1
+#define MOTOR_DIR_PIN_2 9 // en A
+#define ENCODER_PIN_1 2 // tambahkan pin encoder 1 di sini
+#define ENCODER_PIN_2 4 // tambahkan pin encoder 2 di sini
+#define POT_PIN A0 // tambahkan pin potensiometer di sini
+// PID Constants
+float Kp = 1;
+float Ki = 0;
+float Kd = 0;
+// Variables
+float setpoint = 0;
+volatile int input = 0;
+float output = 0;
+float prev_input = 0;
+float integral = 0;
+float derivative = 0;
+unsigned long prev_time = 0;
+float dt = 0;
+void setup() {
+pinMode(MOTOR_DIR_PIN_1, OUTPUT);
+pinMode(MOTOR_DIR_PIN_2, OUTPUT);
+pinMode(MOTOR_PWM_PIN, OUTPUT);
+pinMode(ENCODER_PIN_1, INPUT_PULLUP);
+pinMode(ENCODER_PIN_2, INPUT_PULLUP);
+pinMode(POT_PIN, INPUT); // tambahkan pin potensiometer di sini
+attachInterrupt(digitalPinToInterrupt(ENCODER_PIN_1), 
+encoderISR, CHANGE);
+attachInterrupt(digitalPinToInterrupt(ENCODER_PIN_2), 
+encoderISR, CHANGE);
+Serial.begin(9600);
+}
+void loop() {
+// Read Setpoint
+setpoint = map(analogRead(POT_PIN), 0, 1023, 0, 255); // baca nilai potensiometer
+// Compute Time Step
+unsigned long curr_time = millis();
+dt = (curr_time - prev_time) / 1000.0;
+prev_time = curr_time;
+// Compute PID Output
+float error = setpoint - input;
+integral += error * dt;
+derivative = (input - prev_input) / dt;
+output = Kp * error + Ki * integral + Kd * derivative;
+output = constrain(output, -255, 255);
+prev_input = input;
+// Control Motor
+if (output > 0) {
+digitalWrite(MOTOR_DIR_PIN_1, HIGH);
+digitalWrite(MOTOR_DIR_PIN_2, LOW);
+analogWrite(MOTOR_PWM_PIN, output);
+} else {
+digitalWrite(MOTOR_DIR_PIN_1, LOW);
+digitalWrite(MOTOR_DIR_PIN_2, HIGH);
+analogWrite(MOTOR_PWM_PIN, -output);
+}
+// Print Debug Info
+Serial.print("Setpoint: ");
+Serial.print(setpoint);
+Serial.print(", Input: ");
+Serial.print(input);
+Serial.print(", Output: ");
+Serial.print(output);
+Serial.println();
+// Delay
+delay(10);
+}
+
+void encoderISR() {
+int encoder_val_1 = digitalRead(ENCODER_PIN_1);
+int encoder_val_2 = digitalRead(ENCODER_PIN_2);
+int encoder_dir = 0;
+if (encoder_val_1 == HIGH && encoder_val_2 == HIGH) {
+encoder_dir = 0;
+} else if (encoder_val_1 == HIGH && encoder_val_2 == LOW) {
+encoder_dir = 1;
+} else if (encoder_val_1 == LOW && encoder_val_2 == HIGH) {
+encoder_dir = -1;
+}
+input += encoder_dir;
+}
